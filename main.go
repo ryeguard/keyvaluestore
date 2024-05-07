@@ -18,10 +18,6 @@ type Store struct {
 	mu   sync.Mutex
 }
 
-type HistoryHandler struct {
-	store *Store
-}
-
 func (kv *Store) Put(key, value string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
@@ -106,9 +102,9 @@ func main() {
 		}
 	})
 
-	http.Handle("/kv/hist", &HistoryHandler{store: store})
+	http.HandleFunc("GET /kv/hist/", historyHandler(store))
 
-	http.HandleFunc("/kv/del_hist", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("PUT /kv/del_hist", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {
 			http.Error(w, "must be PUT method", http.StatusBadRequest)
 		}
@@ -137,38 +133,40 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-func (h *HistoryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "must be GET method", http.StatusBadRequest)
-	}
-
-	err := r.ParseForm()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("parse form: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	if len(r.Form) != 1 {
-		http.Error(w, "Only a single query parameter is supported", http.StatusBadRequest)
-		return
-	}
-
-	for k, v := range r.Form {
-		if len(v) != 1 {
-			http.Error(w, "Only a single value per param is supported", http.StatusBadRequest)
-			return
+func historyHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "must be GET method", http.StatusBadRequest)
 		}
 
-		entry, ok := h.store.data[k]
-		if !ok {
-			http.Error(w, fmt.Sprintf("%v does not exist", k), http.StatusBadRequest)
-			return
-		}
-
-		err := json.NewEncoder(w).Encode(entry)
+		err := r.ParseForm()
 		if err != nil {
-			http.Error(w, fmt.Sprintf("encode: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("parse form: %v", err), http.StatusBadRequest)
 			return
+		}
+
+		if len(r.Form) != 1 {
+			http.Error(w, "Only a single query parameter is supported", http.StatusBadRequest)
+			return
+		}
+
+		for k, v := range r.Form {
+			if len(v) != 1 {
+				http.Error(w, "Only a single value per param is supported", http.StatusBadRequest)
+				return
+			}
+
+			entry, ok := store.data[k]
+			if !ok {
+				http.Error(w, fmt.Sprintf("%v does not exist", k), http.StatusBadRequest)
+				return
+			}
+
+			err := json.NewEncoder(w).Encode(entry)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("encode: %v", err), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
