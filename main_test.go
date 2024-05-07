@@ -10,43 +10,63 @@ import (
 )
 
 func TestGetHistory(t *testing.T) {
-	ts, err := time.Parse(time.RFC3339, "2024-05-07T21:08:00.0Z")
+	testTime, err := time.Parse(time.RFC3339, "2024-05-07T21:08:00.0Z")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/kv/hist?testKey", nil)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		request        *http.Request
+		wantStatusCode int
+	}{
+		{
+			request:        httptest.NewRequest(http.MethodGet, "/kv/hist?nonExistingValue", nil),
+			wantStatusCode: http.StatusNotFound,
+		},
+		{
+			request:        httptest.NewRequest(http.MethodGet, "/kv/hist?existingKey", nil),
+			wantStatusCode: http.StatusOK,
+		},
+	}
 
 	store := &Store{
 		data: map[string][]entry{
-			"testKey": {{"testValue", ts}},
+			"existingKey": {{"testValue", testTime}},
 		},
 		mu: sync.Mutex{},
 	}
 
-	historyHandler(store)(w, req)
+	for _, tc := range tests {
+		w := httptest.NewRecorder()
+		historyHandler(store)(w, tc.request)
+		res := w.Result()
+		defer res.Body.Close()
 
-	res := w.Result()
-	defer res.Body.Close()
+		if res.StatusCode != tc.wantStatusCode {
+			t.Fatalf("status got != want: %v != %v", res.StatusCode, tc.wantStatusCode)
+		}
 
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("status code not %v: %v", http.StatusOK, res.StatusCode)
+		if !is2XX(tc.wantStatusCode) {
+			continue
+		}
+
+		var got []entry
+		err := json.NewDecoder(res.Body).Decode(&got)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(got) != 1 {
+			t.Fatal("want len 1")
+		}
+
+		want := entry{Value: "testValue", Ts: testTime}
+		if want != got[0] {
+			t.Fatal("want and got not equal")
+		}
 	}
+}
 
-	var got []entry
-
-	err = json.NewDecoder(res.Body).Decode(&got)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(got) != 1 {
-		t.Fatal("want len 1")
-	}
-
-	want := entry{Value: "testValue", Ts: ts}
-	if want != got[0] {
-		t.Fatal("want and got not equal")
-	}
+func is2XX(code int) bool {
+	return code >= 200 && code < 300
 }

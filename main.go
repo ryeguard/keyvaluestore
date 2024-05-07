@@ -130,14 +130,12 @@ func main() {
 	})
 
 	fmt.Println("Serving...")
-	http.ListenAndServe(":8080", nil)
+	mux := http.NewServeMux()
+	http.ListenAndServe(":8080", mux)
 }
 
 func historyHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "must be GET method", http.StatusBadRequest)
-		}
 
 		err := r.ParseForm()
 		if err != nil {
@@ -158,7 +156,7 @@ func historyHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
 
 			entry, ok := store.data[k]
 			if !ok {
-				http.Error(w, fmt.Sprintf("%v does not exist", k), http.StatusBadRequest)
+				http.Error(w, fmt.Sprintf("%v does not exist", k), http.StatusNotFound)
 				return
 			}
 
