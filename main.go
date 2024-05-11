@@ -5,43 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 )
-
-type entry struct {
-	Value string    `json:"value"`
-	Ts    time.Time `json:"enteredAt"`
-}
-
-type Store struct {
-	data map[string][]entry
-	mu   sync.Mutex
-}
-
-func (kv *Store) Put(key, value string) {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-
-	_, ok := kv.data[key]
-	if !ok {
-		kv.data[key] = []entry{{Value: value, Ts: time.Now()}}
-		return
-	}
-
-	kv.data[key] = append(kv.data[key], entry{Value: value, Ts: time.Now()})
-}
-
-func (kv *Store) DeleteAll(key string) {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-
-	_, ok := kv.data[key]
-	if !ok {
-		return
-	}
-
-	kv.data[key] = nil
-}
 
 func main() {
 
@@ -101,13 +65,13 @@ func getEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		entry, ok := store.data[key]
-		if !ok {
+		value, err := store.Get(key)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("%v does not exist", key), http.StatusNotFound)
 			return
 		}
 
-		fmt.Fprintf(w, "GET %v=%v", key, entry[len(entry)-1].Value)
+		fmt.Fprintf(w, "GET %v=%v", key, value)
 	}
 }
 
