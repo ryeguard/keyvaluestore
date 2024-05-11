@@ -50,8 +50,8 @@ func main() {
 		mu:   sync.Mutex{},
 	}
 
-	http.HandleFunc("PUT /kv", putHandler(store))
-	http.HandleFunc("GET /kv", getHandler(store))
+	http.HandleFunc("PUT /entries/{key}", putEntry(store))
+	http.HandleFunc("GET /entries/{key}", getEntry(store))
 	http.HandleFunc("GET /kv/hist/", historyHandler(store))
 	http.HandleFunc("PUT /kv/del_hist", deleteHistoryHandler(store))
 
@@ -59,57 +59,55 @@ func main() {
 	http.ListenAndServe(":8080", mux)
 }
 
-func putHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func putEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		key := r.PathValue("key")
+		if key == "" {
+			http.Error(w, "key not provided", http.StatusBadRequest)
+			return
+		}
+
 		var p struct {
-			Key   string `json:"key"`
 			Value string `json:"value"`
 		}
 
 		err := json.NewDecoder(r.Body).Decode(&p)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("decode: %v", err), http.StatusBadRequest)
+			if err.Error() == "EOF" {
+				http.Error(w, "request body is empty", http.StatusBadRequest)
+				return
+			}
+			http.Error(w, "request body decode error", http.StatusBadRequest)
 			return
 		}
 
-		if p.Key == "" || p.Value == "" {
-			http.Error(w, "both key and value must be set", http.StatusBadRequest)
+		if p.Value == "" {
+			http.Error(w, "value must be set", http.StatusBadRequest)
 			return
 		}
-		store.Put(p.Key, p.Value)
+		store.Put(key, p.Value)
 
-		fmt.Fprintf(w, "PUT %v=%v", p.Key, p.Value)
+		fmt.Fprintf(w, "PUT %v=%v", key, p.Value)
 	}
 }
 
-func getHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func getEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		err := r.ParseForm()
-		if err != nil {
-			http.Error(w, fmt.Sprintf("parse form: %v", err), http.StatusBadRequest)
+		key := r.PathValue("key")
+		if key == "" {
+			http.Error(w, "key not provided", http.StatusBadRequest)
 			return
 		}
 
-		if len(r.Form) != 1 {
-			http.Error(w, "Only a single query parameter is supported", http.StatusBadRequest)
+		entry, ok := store.data[key]
+		if !ok {
+			http.Error(w, fmt.Sprintf("%v does not exist", key), http.StatusNotFound)
 			return
 		}
 
-		for k, v := range r.Form {
-			if len(v) != 1 {
-				http.Error(w, "Only a single value per param is supported", http.StatusBadRequest)
-				return
-			}
-
-			entry, ok := store.data[k]
-			if !ok {
-				http.Error(w, fmt.Sprintf("%v does not exist", k), http.StatusBadRequest)
-				return
-			}
-
-			fmt.Fprintf(w, "GET %v=%v", k, entry[len(entry)-1].Value)
-		}
+		fmt.Fprintf(w, "GET %v=%v", key, entry[len(entry)-1].Value)
 	}
 }
 

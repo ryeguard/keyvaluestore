@@ -2,12 +2,131 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
+
+func TestPutEntry(t *testing.T) {
+	t.Run("missing key", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]entry{},
+			mu:   sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/", nil)
+		putEntry(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "key not provided\n", string(b))
+	})
+
+	t.Run("missing body", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]entry{},
+			mu:   sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", nil)
+		r.SetPathValue("key", "testKey")
+		putEntry(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "request body is empty\n", string(b))
+	})
+
+	t.Run("incorrect body", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]entry{},
+			mu:   sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader("bad input"))
+		r.SetPathValue("key", "testKey")
+		putEntry(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "request body decode error\n", string(b))
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]entry{},
+			mu:   sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader(`{"value":"testValue"}`))
+		r.SetPathValue("key", "testKey")
+		putEntry(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "PUT testKey=testValue", string(b))
+	})
+}
+
+func TestGetEntry(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]entry{
+				"testKey": {{Value: "testValue"}},
+			},
+			mu: sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", nil)
+		r.SetPathValue("key", "testKey")
+		getEntry(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "GET testKey=testValue", string(b))
+	})
+}
 
 func TestGetHistory(t *testing.T) {
 	testTime, err := time.Parse(time.RFC3339, "2024-05-07T21:08:00.0Z")
@@ -40,7 +159,6 @@ func TestGetHistory(t *testing.T) {
 		w := httptest.NewRecorder()
 		historyHandler(store)(w, tc.request)
 		res := w.Result()
-		defer res.Body.Close()
 
 		if res.StatusCode != tc.wantStatusCode {
 			t.Fatalf("status got != want: %v != %v", res.StatusCode, tc.wantStatusCode)
