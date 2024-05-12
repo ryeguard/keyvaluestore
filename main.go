@@ -14,12 +14,13 @@ func main() {
 		mu:   sync.Mutex{},
 	}
 
-	http.HandleFunc("PUT /entries/{key}", putEntry(store))
-	http.HandleFunc("GET /entries/{key}", getEntry(store))
-	http.HandleFunc("GET /kv/hist/", historyHandler(store))
-	http.HandleFunc("PUT /kv/del_hist", deleteHistoryHandler(store))
-
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("PUT /entries/{key}", putEntry(store))
+	mux.HandleFunc("GET /entries/{key}", getEntry(store))
+	mux.HandleFunc("GET /kv/hist/", historyHandler(store))
+	mux.HandleFunc("PUT /kv/del_hist", deleteHistoryHandler(store))
+
 	http.ListenAndServe(":8080", mux)
 }
 
