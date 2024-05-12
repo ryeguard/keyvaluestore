@@ -13,16 +13,20 @@ A naive key value store implemented in Go, serving over HTTP.
 
 ## HTTP API
 
-### Getting a value
-
-```bash
-curl -X GET 'localhost:8080/kv?key=simon'
-```
-
 ### Setting a value
 
+Set the key `testKey` to the value `testValue` by sending a PUT request:
+
 ```bash
-curl -X PUT 'localhost:8080/kv' -d '{"key": "yo", "value": "hello"}'
+curl -X PUT 'localhost:8080/entries/testKey' -d '{"value":"testValue"}'
+```
+
+### Getting a value
+
+Get the value of the key `testKey` by sending a GET request:
+
+```bash
+curl -X GET 'localhost:8080/entries/testKey'
 ```
 
 ### Getting the history
