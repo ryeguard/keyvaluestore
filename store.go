@@ -17,7 +17,7 @@ type entry struct {
 	deletedAt *time.Time
 }
 
-func (kv *Store) Put(key, value string) {
+func (kv *Store) Update(key, value string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 

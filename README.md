@@ -15,15 +15,15 @@ A naive key value store implemented in Go, serving over HTTP.
 
 ### Setting a value
 
-Set the key `testKey` to the value `testValue` by sending a PUT request:
+Update the key `testKey` to the value `testValue` by sending a POST request. This is modelled as a `POST` request because it is a non-idempotent operation: the key's history is updated.
 
 ```bash
-curl -X PUT 'localhost:8080/entries/testKey' -d '{"value":"testValue"}'
+curl -X POST 'localhost:8080/entries/testKey' -d '{"value":"testValue"}'
 ```
 
 ### Getting a value
 
-Get the value of the key `testKey` by sending a GET request:
+Get the value of the key `testKey` by sending a GET request.
 
 ```bash
 curl -X GET 'localhost:8080/entries/testKey'
@@ -32,11 +32,11 @@ curl -X GET 'localhost:8080/entries/testKey'
 ### Getting the history
 
 ```bash
-curl -X PUT 'localhost:8080/kv/hist?yo'
+curl -X GET 'localhost:8080/entries/testKey/history'
 ```
 
 ### Deleting all history
 
 ```bash
-curl -X PUT 'localhost:8080/kv/del_hist' -d '{"key": "yo"}'
+curl -X DELETE 'localhost:8080/entries/testKey/history'
 ```

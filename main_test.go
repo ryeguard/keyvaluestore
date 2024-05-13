@@ -20,8 +20,8 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/", nil)
-		putEntryFunc(store)(w, r)
+		r := httptest.NewRequest(http.MethodPost, "/entries/", nil)
+		postEntryFunc(store)(w, r)
 		res := w.Result()
 
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -41,9 +41,9 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", nil)
+		r := httptest.NewRequest(http.MethodPost, "/entries/testKey", nil)
 		r.SetPathValue("key", "testKey")
-		putEntryFunc(store)(w, r)
+		postEntryFunc(store)(w, r)
 		res := w.Result()
 
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -63,9 +63,9 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader("bad input"))
+		r := httptest.NewRequest(http.MethodPost, "/entries/testKey", strings.NewReader("bad input"))
 		r.SetPathValue("key", "testKey")
-		putEntryFunc(store)(w, r)
+		postEntryFunc(store)(w, r)
 		res := w.Result()
 
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -85,9 +85,9 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader(`{"value":""}`))
+		r := httptest.NewRequest(http.MethodPost, "/entries/testKey", strings.NewReader(`{"value":""}`))
 		r.SetPathValue("key", "testKey")
-		putEntryFunc(store)(w, r)
+		postEntryFunc(store)(w, r)
 		res := w.Result()
 
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -107,9 +107,9 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader(`{"value":"testValue"}`))
+		r := httptest.NewRequest(http.MethodPost, "/entries/testKey", strings.NewReader(`{"value":"testValue"}`))
 		r.SetPathValue("key", "testKey")
-		putEntryFunc(store)(w, r)
+		postEntryFunc(store)(w, r)
 		res := w.Result()
 
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -119,7 +119,7 @@ func TestPutEntry(t *testing.T) {
 			t.Fatalf("failed reading return body")
 		}
 
-		require.Equal(t, "PUT testKey=testValue", string(b))
+		require.Equal(t, "POST testKey=testValue", string(b))
 	})
 
 	t.Run("OK - second value", func(t *testing.T) {
@@ -131,9 +131,9 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader(`{"value":"secondValue"}`))
+		r := httptest.NewRequest(http.MethodPost, "/entries/testKey", strings.NewReader(`{"value":"secondValue"}`))
 		r.SetPathValue("key", "testKey")
-		putEntryFunc(store)(w, r)
+		postEntryFunc(store)(w, r)
 		res := w.Result()
 
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -143,7 +143,7 @@ func TestPutEntry(t *testing.T) {
 			t.Fatalf("failed reading return body")
 		}
 
-		require.Equal(t, "PUT testKey=secondValue", string(b))
+		require.Equal(t, "POST testKey=secondValue", string(b))
 
 		require.NotNil(t, store.data["testKey"][0].deletedAt)
 		require.Nil(t, store.data["testKey"][1].deletedAt)
@@ -166,7 +166,7 @@ func TestGetEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", nil)
+		r := httptest.NewRequest(http.MethodGet, "/entries/testKey", nil)
 		r.SetPathValue("key", "testKey")
 		getEntryFunc(store)(w, r)
 		res := w.Result()
@@ -193,7 +193,7 @@ func TestGetEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", nil)
+		r := httptest.NewRequest(http.MethodGet, "/entries/testKey", nil)
 		r.SetPathValue("key", "testKey")
 		getEntryFunc(store)(w, r)
 		res := w.Result()
@@ -219,7 +219,7 @@ func TestGetEntry(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", nil)
+		r := httptest.NewRequest(http.MethodGet, "/entries/testKey", nil)
 		r.SetPathValue("key", "testKey")
 		getEntryFunc(store)(w, r)
 		res := w.Result()

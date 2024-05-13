@@ -16,7 +16,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("PUT /entries/{key}", putEntryFunc(store))
+	mux.HandleFunc("POST /entries/{key}", postEntryFunc(store))
 	mux.HandleFunc("GET /entries/{key}", getEntryFunc(store))
 	mux.HandleFunc("DELETE /entries/{key}", deleteEntryFunc(store))
 	mux.HandleFunc("GET /entries/{key}/history", getHistoryFunc(store))
@@ -25,7 +25,7 @@ func main() {
 	http.ListenAndServe(":8080", mux)
 }
 
-func putEntryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func postEntryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		key := r.PathValue("key")
@@ -52,9 +52,9 @@ func putEntryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "value must be set", http.StatusBadRequest)
 			return
 		}
-		store.Put(key, p.Value)
+		store.Update(key, p.Value)
 
-		fmt.Fprintf(w, "PUT %v=%v", key, p.Value)
+		fmt.Fprintf(w, "POST %v=%v", key, p.Value)
 	}
 }
 
