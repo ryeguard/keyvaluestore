@@ -78,7 +78,29 @@ func TestPutEntry(t *testing.T) {
 		require.Equal(t, "request body decode error\n", string(b))
 	})
 
-	t.Run("OK", func(t *testing.T) {
+	t.Run("empty value", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]*entry{},
+			mu:   sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader(`{"value":""}`))
+		r.SetPathValue("key", "testKey")
+		putEntryFunc(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "value must be set\n", string(b))
+	})
+
+	t.Run("OK - first value", func(t *testing.T) {
 		store := &Store{
 			data: map[string][]*entry{},
 			mu:   sync.Mutex{},
@@ -98,6 +120,34 @@ func TestPutEntry(t *testing.T) {
 		}
 
 		require.Equal(t, "PUT testKey=testValue", string(b))
+	})
+
+	t.Run("OK - second value", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]*entry{
+				"testKey": {{Value: "firstValue"}},
+			},
+			mu: sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPut, "/entries/testKey", strings.NewReader(`{"value":"secondValue"}`))
+		r.SetPathValue("key", "testKey")
+		putEntryFunc(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "PUT testKey=secondValue", string(b))
+
+		require.NotNil(t, store.data["testKey"][0].deletedAt)
+		require.Nil(t, store.data["testKey"][1].deletedAt)
+
 	})
 }
 
@@ -185,6 +235,47 @@ func TestGetEntry(t *testing.T) {
 	})
 }
 
+func TestDeleteEntry(t *testing.T) {
+	t.Run("OK - no data", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]*entry{},
+			mu:   sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodDelete, "/entries/testKey", nil)
+		r.SetPathValue("key", "testKey")
+		deleteEntryFunc(store)(w, r)
+		res := w.Result()
+
+		b, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		require.Equal(t, "", string(b))
+	})
+
+	t.Run("OK - data", func(t *testing.T) {
+		store := &Store{
+			data: map[string][]*entry{
+				"testKey": {{Value: "testValue"}},
+			},
+			mu: sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodDelete, "/entries/testKey", nil)
+		r.SetPathValue("key", "testKey")
+		deleteEntryFunc(store)(w, r)
+		res := w.Result()
+
+		b, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		require.Equal(t, "", string(b))
+		require.NotNil(t, store.data["testKey"][0].deletedAt)
+	})
+}
+
 func TestGetHistory(t *testing.T) {
 	testTime, err := time.Parse(time.RFC3339, "2024-05-07T21:08:00.0Z")
 	if err != nil {
@@ -230,5 +321,37 @@ func TestGetHistory(t *testing.T) {
 		}
 
 		require.Equal(t, "[{\"value\":\"testValue1\",\"enteredAt\":\"2024-05-07T21:08:00Z\"},{\"value\":\"testValue2\",\"enteredAt\":\"2024-05-07T21:08:01Z\"}]\n", string(b))
+	})
+}
+
+func TestDeleteHistory(t *testing.T) {
+	t.Run("OK - data", func(t *testing.T) {
+
+		store := &Store{
+			data: map[string][]*entry{
+				"testKey": {
+					{Value: "firstValue"},
+					{Value: "secondValue"},
+				},
+			},
+			mu: sync.Mutex{},
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodDelete, "/entries/testKey/history", nil)
+		r.SetPathValue("key", "testKey")
+		deleteHistoryFunc(store)(w, r)
+		res := w.Result()
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed reading return body")
+		}
+
+		require.Equal(t, "", string(b))
+
+		require.Nil(t, store.data["testKey"])
 	})
 }
