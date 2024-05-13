@@ -10,21 +10,22 @@ import (
 func main() {
 
 	store := &Store{
-		data: map[string][]entry{},
+		data: map[string][]*entry{},
 		mu:   sync.Mutex{},
 	}
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("PUT /entries/{key}", putEntry(store))
-	mux.HandleFunc("GET /entries/{key}", getEntry(store))
-	mux.HandleFunc("GET /kv/hist/", historyHandler(store))
-	mux.HandleFunc("PUT /kv/del_hist", deleteHistoryHandler(store))
+	mux.HandleFunc("PUT /entries/{key}", putEntryFunc(store))
+	mux.HandleFunc("GET /entries/{key}", getEntryFunc(store))
+	mux.HandleFunc("DELETE /entries/{key}", deleteEntryFunc(store))
+	mux.HandleFunc("GET /entries/{key}/history", getHistoryFunc(store))
+	mux.HandleFunc("DELETE /entries/{key}/history", deleteHistoryFunc(store))
 
 	http.ListenAndServe(":8080", mux)
 }
 
-func putEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func putEntryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		key := r.PathValue("key")
@@ -57,7 +58,7 @@ func putEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func getEntryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		key := r.PathValue("key")
@@ -76,64 +77,50 @@ func getEntry(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func historyHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func deleteEntryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key := r.PathValue("key")
+		if key == "" {
+			http.Error(w, "key not provided", http.StatusBadRequest)
+			return
+		}
+
+		store.Delete(key)
+	}
+}
+
+func getHistoryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		err := r.ParseForm()
+		key := r.PathValue("key")
+		if key == "" {
+			http.Error(w, "key not provided", http.StatusBadRequest)
+			return
+		}
+
+		entries, err := store.GetAll(key)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("parse form: %v", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf("%v does not exist", key), http.StatusNotFound)
 			return
 		}
 
-		if len(r.Form) != 1 {
-			http.Error(w, "Only a single query parameter is supported", http.StatusBadRequest)
+		err = json.NewEncoder(w).Encode(entries)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("encode: %v", err), http.StatusInternalServerError)
 			return
-		}
-
-		for k, v := range r.Form {
-			if len(v) != 1 {
-				http.Error(w, "Only a single value per param is supported", http.StatusBadRequest)
-				return
-			}
-
-			entry, ok := store.data[k]
-			if !ok {
-				http.Error(w, fmt.Sprintf("%v does not exist", k), http.StatusNotFound)
-				return
-			}
-
-			err := json.NewEncoder(w).Encode(entry)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("encode: %v", err), http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 }
 
-func deleteHistoryHandler(store *Store) func(w http.ResponseWriter, r *http.Request) {
+func deleteHistoryFunc(store *Store) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" {
-			http.Error(w, "must be PUT method", http.StatusBadRequest)
-		}
 
-		var d struct {
-			Key string `json:"key"`
-		}
-
-		err := json.NewDecoder(r.Body).Decode(&d)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("decode: %v", err), http.StatusBadRequest)
+		key := r.PathValue("key")
+		if key == "" {
+			http.Error(w, "key not provided", http.StatusBadRequest)
 			return
 		}
 
-		if d.Key == "" {
-			http.Error(w, "key must be set", http.StatusBadRequest)
-			return
-		}
-
-		store.DeleteAll(d.Key)
-
-		fmt.Fprintf(w, "PUT %v=''", d.Key)
+		store.DeleteAll(key)
 	}
 }
